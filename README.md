@@ -2,7 +2,7 @@ Haskell Spacegoo
 ================
 
 Using this library you can quickly create code to take part in a game of Rocket
-Scissor Spacegoo; see http://spacegoo.rent-a-geek.de/ for more details on the
+Scissor Spacegoo; see <http://spacegoo.rent-a-geek.de/> for more details on the
 game.
 
 Here is a minimal example, that just sends all ships from one planet to an
