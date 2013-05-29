@@ -202,7 +202,7 @@ stateSummary State{..} =
     Just me = playerId <$> find itsme players
     he = 3 - me
     statsFor i = printf  "%2dp" (length ps) ++
-                 printf " %5dp" (sum (map (unitSum . planetShips) ps) + 
+                 printf " %5ds" (sum (map (unitSum . planetShips) ps) +
                                  sum (map (unitSum . fleetShips) fs)) ++
                  (if i == 0 then "" else printf " %2df" (length fs))
       where ps = filter (\p -> planetOwner p == i) planets
