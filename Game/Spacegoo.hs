@@ -159,6 +159,7 @@ client port server username password player = do
             $= C.decode C.utf8
             $= C.lines
             $= C.encode C.utf8
+            $= disconnect
             $= parseState 
             -- not $= logState
             $= C.iterM (putStrLn . stateSummary)
@@ -177,6 +178,14 @@ logState :: Conduit State IO State
 logState = awaitForever $ \s -> do
     liftIO $ putStrLn (render (ppDoc s))
     yield s
+
+disconnect :: Conduit ByteString IO ByteString
+disconnect = do 
+    v <- await
+    F.forM_ v $ \s ->
+        unless (s == "game is over. please disconnect") $ do
+            yield s
+            disconnect
 
 parseState :: Conduit ByteString IO State
 parseState = do
