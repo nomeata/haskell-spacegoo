@@ -9,6 +9,8 @@
 
 module Game.Spacegoo (
     -- * The state
+    PlayerId(..),
+    Round(..),
     Units(..),
     Coord(..),
     Player(..),
@@ -25,6 +27,12 @@ module Game.Spacegoo (
     me,
     he,
     opponentName,
+    winsAgainst,
+    distance,
+    hasMore,
+    ownerAt,
+    linInt,
+    nemesisOf,
     -- * Example strategies
     -- These are some simple strategies, for demonstration purposes.
     nop,
@@ -33,6 +41,8 @@ module Game.Spacegoo (
     intercept,
     ) where
 
+import Data.List (sortBy)
+import Data.Ord
 import Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -57,11 +67,12 @@ import Text.Printf
 --import Control.Monad.Random
 import Data.Maybe
 import Data.VectorSpace
+import Test.QuickCheck
 
 
 data Player = Player
     { itsme :: Bool
-    , playerId :: Int
+    , playerId :: PlayerId
     , name :: Text
     }
     deriving Show
@@ -72,11 +83,19 @@ instance FromJSON Player where
                <*> v .: "id"
                <*> v .: "name"
 
+-- | The player (0,1 or 2)
+type PlayerId = Int
+
+-- | A Round count
+type Round = Int
+
 -- | A position on the map
 type Coord = (Int, Int)
 
 -- | Units, either on a planet, on a fleet, or as a production indication.
 type Units = (Int, Int, Int)
+
+type FUnits = (Double, Double, Double)
 
 
 fleetFromVector :: Monad m => V.Vector Int -> m Units
@@ -86,7 +105,7 @@ fleetFromVector v | V.length v /= 3 = fail "Wrong number of elements in array"
 
 data Fleet = Fleet
     { fleetId :: Int
-    , fleetOwner :: Int
+    , fleetOwner :: PlayerId
     , origin :: Int
     , target :: Int
     , fleetShips :: Units
@@ -106,7 +125,7 @@ instance FromJSON Fleet where
 data Planet = Planet
     { planetId :: Int
     , position :: Coord
-    , planetOwner :: Int
+    , planetOwner :: PlayerId
     , production :: Units
     , planetShips :: Units
     } 
@@ -122,8 +141,8 @@ instance FromJSON Planet where
 
 data State = State 
     { gameOver :: Bool
-    , currentRound :: Int
-    , maxRounds :: Int
+    , currentRound :: Round
+    , maxRounds :: Round
     , players :: [Player]
     , fleets :: [Fleet]
     , planets :: [Planet]
@@ -272,17 +291,30 @@ intercept (State {..}) = do
             guard $ currentRound + distance p t - eta f `elem` [1,2]
             return $ (planetId p, planetId t, fleetShips f)
 
+-- | Whether the first player has at least as many ships as the other
 hasMore :: Units -> Units -> Bool
 hasMore (a,b,c) (a',b',c') = a >= a && b >= b' && c >= c'
-        
+
 float2 :: (Int, Int) -> (Double, Double)
 float2 (a,b) = (fromIntegral a, fromIntegral b)
 
-float3 :: (Int, Int, Int) -> (Double, Double, Double)
-float3 (a,b,c) = (fromIntegral a, fromIntegral b, fromIntegral c)
+map3 :: (a->b) -> (a,a,a) -> (b,b,b)
+map3 f (a,b,c) = (f a, f b, f c)
+
+float3 :: Units -> FUnits
+float3 = map3 fromIntegral
+
+floor3 :: FUnits -> Units
+floor3 = map3 floor
+
+nonneg3:: FUnits -> FUnits
+nonneg3 = map3 (max 0)
 
 distance :: Planet -> Planet -> Int
 distance p1 p2 = ceiling (magnitude (float2 (position p1 ^-^ position p2)))
+
+linInt :: Double -> Units -> Units -> Units
+linInt f u1 u2 = floor3 (lerp (float3 u1) (float3 u2) f)
 
 -- | My id
 me :: State -> Int
@@ -296,3 +328,54 @@ he s = 3 - me s
 opponentName :: State -> Text
 opponentName s = fromJust $ 
     name <$> find (not . itsme) (players s)
+
+damage :: FUnits -> FUnits
+damage (a,b,c)  = ( 0.25 * c + (if c > 0 then 2 else 0)
+                  + 0.1  * a + (if a > 0 then 1 else 0) 
+                  + 0.01 * b + (if b > 0 then 1 else 0) 
+                  , 0.25 * a + (if a > 0 then 2 else 0)
+                  + 0.1  * b + (if b > 0 then 1 else 0) 
+                  + 0.01 * c + (if c > 0 then 1 else 0) 
+                  , 0.25 * b + (if b > 0 then 2 else 0)
+                  + 0.1  * c + (if c > 0 then 1 else 0) 
+                  + 0.01 * a + (if a > 0 then 1 else 0) 
+                  ) 
+
+oneRound :: FUnits -> FUnits -> FUnits
+oneRound att def = nonneg3 $ def ^-^ damage att
+
+-- | Whether the first argument wins against the second, and how many ships are
+-- left
+winsAgainst :: Units -> Units -> (Bool, Units)
+winsAgainst att def = go (float3 att) (float3 def)
+    where go a d | magnitude a <= 1e-5 = (False, floor3 d)
+                 | magnitude d <= 1e-5 = (True, floor3 a)
+                 | otherwise = go (oneRound d a) (oneRound a d)
+
+-- | Predict the owner and strength of the planet at the given round
+ownerAt :: State -> Int -> Round ->  (PlayerId, Units) 
+ownerAt s i round = go (currentRound s, planetOwner p, planetShips p) $
+    sortBy (comparing eta) $
+    filter (\f -> target f == i) $
+    filter (\f -> eta f <= round) $
+    fleets s
+  where
+    go (r, o, ships) [] = (o, produce o ships (round - r))
+    go (r, o, ships) (f:fs)
+        | fleetOwner f == o
+        = go (eta f, o, produce o ships (eta f - r) ^+^ fleetShips f) fs
+        | fleetOwner f /= o
+        = case winsAgainst (fleetShips f) (produce o ships (eta f - r)) of
+            (True, rest) ->  go (eta f, fleetOwner f, rest) fs
+            (False, rest) -> go (eta f, o, rest) fs
+    Just p = find (\p -> planetId p == i) (planets s)
+    produce 0 ships _ = ships  
+    produce _ ships n = ships ^+^ n *^ production p
+
+nemesisOf :: Units -> Units
+nemesisOf (a,b,c) = (b,c,a)
+
+
+nemesisWins :: Units -> Property
+nemesisWins u = (map3 (max 0) u == u) ==>
+    fst (winsAgainst u u) == False
