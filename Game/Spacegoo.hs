@@ -20,6 +20,11 @@ module Game.Spacegoo (
     Strategy(..),
     -- * Writing clients
     client,
+    -- * Utilities
+    -- Convenience functions for working with the state
+    me,
+    he,
+    opponentName,
     -- * Example strategies
     -- These are some simple strategies, for demonstration purposes.
     nop,
@@ -264,7 +269,7 @@ intercept (State {..}) = do
         msum $ flip map planets $ \p -> do
             guard $ planetOwner p == me
             guard $ planetShips p `hasMore` fleetShips f
-            guard $ round + distance p t - eta f `elem` [0,1,2]
+            guard $ round + distance p t - eta f `elem` [1,2]
             return $ (planetId p, planetId t, fleetShips f)
 
 hasMore :: Units -> Units -> Bool
@@ -278,3 +283,16 @@ float3 (a,b,c) = (fromIntegral a, fromIntegral b, fromIntegral c)
 
 distance :: Planet -> Planet -> Int
 distance p1 p2 = ceiling (magnitude (float2 (position p1 ^-^ position p2)))
+
+-- | My id
+me :: State -> Int
+me s = fromJust $ playerId <$> find itsme (players s)
+
+-- | The other players id
+he :: State -> Int
+he s = 3 - me s 
+
+-- | The opponent's name; to filter out known bad opponents
+opponentName :: State -> Text
+opponentName s = fromJust $ 
+    name <$> find (not . itsme) (players s)
