@@ -122,7 +122,7 @@ instance FromJSON Planet where
 
 data State = State 
     { gameOver :: Bool
-    , round :: Int
+    , currentRound :: Int
     , maxRounds :: Int
     , players :: [Player]
     , fleets :: [Fleet]
@@ -210,7 +210,7 @@ parseState = do
     
 stateSummary :: State -> String
 stateSummary State{..} =
-    printf "[Round %3d/%3d]" round maxRounds
+    printf "[Round %3d/%3d]" currentRound maxRounds
     ++ " We: " ++ statsFor me ++ " He: " ++ statsFor he ++ " Neutral: " ++ statsFor 0
   where
     Just me = playerId <$> find itsme players
@@ -241,7 +241,7 @@ sendSomewhere :: Strategy
 sendSomewhere (State {..}) = do
     me <- playerId <$> find itsme players
     let he = 3 - me
-    aPlanet <- find (\p -> planetOwner p == me) planets
+    aPlanet <- find (\p -> planetOwner p == me && planetShips p /= (0,0,0)) planets
     otherPlanet <- find (\p -> planetOwner p == he) planets
     return (planetId aPlanet, planetId otherPlanet, planetShips aPlanet)
 
@@ -269,7 +269,7 @@ intercept (State {..}) = do
         msum $ flip map planets $ \p -> do
             guard $ planetOwner p == me
             guard $ planetShips p `hasMore` fleetShips f
-            guard $ round + distance p t - eta f `elem` [1,2]
+            guard $ currentRound + distance p t - eta f `elem` [1,2]
             return $ (planetId p, planetId t, fleetShips f)
 
 hasMore :: Units -> Units -> Bool
