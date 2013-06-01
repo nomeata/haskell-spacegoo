@@ -33,6 +33,7 @@ module Game.Spacegoo (
     ownerAt,
     linInt,
     nemesisOf,
+    minimizeUnits,
     -- * Example strategies
     -- These are some simple strategies, for demonstration purposes.
     nop,
@@ -376,6 +377,40 @@ nemesisOf :: Units -> Units
 nemesisOf (a,b,c) = (b,c,a)
 
 
+-- If the attacker wins against the defender, try to find a subset that also wins.
+minimizeUnits :: Units -> Units -> Units
+minimizeUnits a d = go a a 
+  where
+    go last a = case winsAgainst a d of
+            (False, _) -> last
+            (True, r)  ->
+                let r' = map3 (max 1) $ map3 (`div` 3) (a ^-^ r)
+                in if r' /= (0,0,0) then go a (map3 (max 0) (a ^-^ r')) else a
+
+{-
+minimizeUnits :: Units -> Units -> Units
+minimizeUnits a d =
+    (\[a,b,c] -> floor3 (a,b,c)) $ fst $
+    minimize NMSimplex2 1 30 f test f
+  where
+    f = (\(a,b,c) -> [a,b,c]) $ float3 a
+    test l@[a,b,c] = case winsAgainst (floor3 (a,b,c)) d of
+        (False, _) -> 2 * sum f
+        (True, r)  -> sum l
+-}
+
+-----------
+-- Tests --
+-----------
+--
 nemesisWins :: Units -> Property
 nemesisWins u = (map3 (max 0) u == u) ==>
-    fst (winsAgainst u u) == False
+    fst (winsAgainst u (nemesisOf u)) == False
+
+minimizeUnitsWins :: Units -> Units -> Property
+minimizeUnitsWins a d = 
+    fst (winsAgainst a' d') ==> fst (winsAgainst (minimizeUnits a' d') d')
+  where
+    (a',d') = case winsAgainst (map3 abs a) (map3 abs d) of
+                (True, _) -> (map3 abs a, map3 abs d)
+                (False, _) -> (map3 abs d, map3 abs a)
