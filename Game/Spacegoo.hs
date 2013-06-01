@@ -384,8 +384,8 @@ minimizeUnits a d = go a a
     go last a = case winsAgainst a d of
             (False, _) -> last
             (True, r)  ->
-                let r' = map3 (max 1) $ map3 (`div` 3) (a ^-^ r)
-                in if r' /= (0,0,0) then go a (map3 (max 0) (a ^-^ r')) else a
+                let r' = map3 (`div` 3) (a ^-^ r)
+                in if r' /= (0,0,0) then go a (a ^-^ r') else a
 
 {-
 minimizeUnits :: Units -> Units -> Units
