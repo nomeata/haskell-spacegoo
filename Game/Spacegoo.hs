@@ -69,7 +69,6 @@ import Text.Printf
 --import Control.Monad.Random
 import Data.Maybe
 import Data.VectorSpace
-import Test.QuickCheck
 
 
 data Player = Player
@@ -390,15 +389,3 @@ minimizeUnits a d = go a a
                                   in if r' /= (0,0,0) then go a (a ^-^ r') else a
                     (False, _) -> last
 
------------
--- Tests --
------------
-
-nemesisWins :: Units -> Property
-nemesisWins u = (map3 (max 0) u == u) ==> winsAgainst u (nemesisOf u) == False
-
-minimizeUnitsWins :: Units -> Units -> Property
-minimizeUnitsWins a d = winsAgainst a' d' ==> winsAgainst (minimizeUnits a' d') d'
-  where
-    (a',d') | winsAgainst (map3 abs a) (map3 abs d) = (map3 abs a, map3 abs d)
-            | otherwise                             = (map3 abs d, map3 abs a)
