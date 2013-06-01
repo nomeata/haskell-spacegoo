@@ -17,7 +17,7 @@ import Data.Ord
 -- username, a password and a function that takes the state of the game and
 -- returns a Maybe Move
 main :: IO ()
-main = client 6000 "spacegoo.gpn.entropia.de" "username" "password" $ \s ->
+main = client 6000 "spacegoo.gpn.entropia.de" "nomeataintercept2" "foo42" $ \s ->
     -- msum takes a list of (Maybe Move) and returns the first Move found (or
     -- Nothing if none of the strategy returns a move
     --
