@@ -18,7 +18,7 @@ library
   exposed-modules:     
         Game.Spacegoo
   build-depends:
-        base
+        base == 4.*
         , vector
         , pretty
         , pretty-show
