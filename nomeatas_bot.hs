@@ -50,7 +50,7 @@ cheapNeutral s = do
         -- Make sure that the planet is still neutral then...
         , o' == 0
         -- ..that we can win it..
-        , fst (planetShips p `winsAgainst` goal)
+        , planetShips p `winsAgainst` goal
         , let d = distance p op
         -- And that the planet is far from the enemy
         , and [ distance op p2' > 2 * d
@@ -75,7 +75,7 @@ fullForceOn victim s = do
                                      (currentRound s + d + 2)
         , o' == victim
         -- and we really win against it
-        , fst (planetShips p `winsAgainst` goal)
+        , planetShips p `winsAgainst` goal
         ]
 
 -- Strategy 3: Reduce the strength of nearby neutral planets with (1,1,1)

@@ -27,6 +27,7 @@ module Game.Spacegoo (
     me,
     he,
     opponentName,
+    battle,
     winsAgainst,
     distance,
     hasMore,
@@ -197,8 +198,6 @@ client port server username password player = do
             =$= C.iterM (F.mapM_ putStrLn . moveSummary)
             =$= C.map serializeMove
 
-nopClient =  client 6000 "spacegoo.rent-a-geek.de" "foo" "bar" (const Nothing)
-
 logState :: Conduit State IO State
 logState = awaitForever $ \s -> do
     liftIO $ putStrLn (render (ppDoc s))
@@ -347,11 +346,16 @@ oneRound att def = nonneg3 $ def ^-^ damage att
 
 -- | Whether the first argument wins against the second, and how many ships are
 -- left
-winsAgainst :: Units -> Units -> (Bool, Units)
-winsAgainst att def = go (float3 att) (float3 def)
+battle :: Units -> Units -> (Bool, Units)
+battle att def = go (float3 att) (float3 def)
     where go a d | magnitude a <= 1e-5 = (False, floor3 d)
                  | magnitude d <= 1e-5 = (True, floor3 a)
                  | otherwise = go (oneRound d a) (oneRound a d)
+
+-- | Whether the first fleet wins against the second (defaulting to the second)
+winsAgainst :: Units -> Units -> Bool
+winsAgainst att def = fst (battle att def)
+
 
 -- | Predict the owner and strength of the planet at the given round
 ownerAt :: State -> Int -> Round ->  (PlayerId, Units) 
@@ -366,7 +370,7 @@ ownerAt s i round = go (currentRound s, planetOwner p, planetShips p) $
         | fleetOwner f == o
         = go (eta f, o, produce o ships (eta f - r) ^+^ fleetShips f) fs
         | fleetOwner f /= o
-        = case winsAgainst (fleetShips f) (produce o ships (eta f - r)) of
+        = case battle (fleetShips f) (produce o ships (eta f - r)) of
             (True, rest) ->  go (eta f, fleetOwner f, rest) fs
             (False, rest) -> go (eta f, o, rest) fs
     Just p = find (\p -> planetId p == i) (planets s)
@@ -381,36 +385,20 @@ nemesisOf (a,b,c) = (b,c,a)
 minimizeUnits :: Units -> Units -> Units
 minimizeUnits a d = go a a 
   where
-    go last a = case winsAgainst a d of
-            (False, _) -> last
-            (True, r)  ->
-                let r' = map3 (`div` 3) (a ^-^ r)
-                in if r' /= (0,0,0) then go a (a ^-^ r') else a
-
-{-
-minimizeUnits :: Units -> Units -> Units
-minimizeUnits a d =
-    (\[a,b,c] -> floor3 (a,b,c)) $ fst $
-    minimize NMSimplex2 1 30 f test f
-  where
-    f = (\(a,b,c) -> [a,b,c]) $ float3 a
-    test l@[a,b,c] = case winsAgainst (floor3 (a,b,c)) d of
-        (False, _) -> 2 * sum f
-        (True, r)  -> sum l
--}
+    go last a = case battle a d of
+                    (True, r)  -> let r' = map3 (`div` 3) (a ^-^ r)
+                                  in if r' /= (0,0,0) then go a (a ^-^ r') else a
+                    (False, _) -> last
 
 -----------
 -- Tests --
 -----------
---
+
 nemesisWins :: Units -> Property
-nemesisWins u = (map3 (max 0) u == u) ==>
-    fst (winsAgainst u (nemesisOf u)) == False
+nemesisWins u = (map3 (max 0) u == u) ==> winsAgainst u (nemesisOf u) == False
 
 minimizeUnitsWins :: Units -> Units -> Property
-minimizeUnitsWins a d = 
-    fst (winsAgainst a' d') ==> fst (winsAgainst (minimizeUnits a' d') d')
+minimizeUnitsWins a d = winsAgainst a' d' ==> winsAgainst (minimizeUnits a' d') d'
   where
-    (a',d') = case winsAgainst (map3 abs a) (map3 abs d) of
-                (True, _) -> (map3 abs a, map3 abs d)
-                (False, _) -> (map3 abs d, map3 abs a)
+    (a',d') | winsAgainst (map3 abs a) (map3 abs d) = (map3 abs a, map3 abs d)
+            | otherwise                             = (map3 abs d, map3 abs a)
