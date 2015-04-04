@@ -1,5 +1,5 @@
 name:                haskell-spacegoo
-version:             0.2
+version:             0.2.0.1
 synopsis:            Client API for Rocket Scissor Spacegoo
 description:         Using this package you can quickly create code to take
                      part in a game of Rocket Scissor Spacegoo; see
@@ -26,7 +26,7 @@ library
         , mtl
         , bytestring
         , text
-        , network-conduit
+        , conduit-extra
         , conduit
         , vector-space
 
