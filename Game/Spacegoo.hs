@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RankNTypes, RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings, RankNTypes, RecordWildCards, FlexibleContexts #-}
 
 -- | 
 -- This module provides you with everything to quicky write clients for the
